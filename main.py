@@ -3,7 +3,10 @@ from selenium import webdriver
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from threadpool import SimpleThreadPool
 import configparser
+import time
+
 
 
 class App:
@@ -31,7 +34,7 @@ class App:
         user_name = self.driver.find_element_by_xpath('//a[@data-spm="duserinfo"]/div').text
         print('账号：', user_name)
 
-    def detail_page_auto(self):
+    def detail_page_auto(self, ticket_number=3):
         """详情页自动"""
 
         self.driver.get('https://detail.damai.cn/item.htm?id=593089517773')
@@ -39,6 +42,7 @@ class App:
             EC.presence_of_element_located((By.XPATH, '//button[@data-spm="dconfirm"]')))
 
         dconfirm_button = self.driver.find_element_by_xpath('//button[@data-spm="dconfirm"]')
+        
         while dconfirm_button.get_attribute('class') == 'privilege_sub disabled':
             print(dconfirm_button.get_attribute('class'), '确定按钮无法点击，刷新页面')
             self.driver.refresh()
@@ -56,7 +60,10 @@ class App:
                 '//a[@class="cafe-c-input-number-handler cafe-c-input-number-handler-up"]').click()
         except Exception as e:
             print("未成功点击+号", e)
-        self.driver.find_element_by_xpath('//div[@class="select_right_list"]/div[3]/span[2]').click()
+        try:
+            self.driver.find_element_by_xpath('//div[@class="select_right_list"]/div[{ticket_number}]/span[2]'.format(ticket_number=str(ticket_number))).click()
+        except Exception as e:
+            print("选择场次失败", e)
         dbuy_button = self.driver.find_element_by_xpath('//div[@data-spm="dbuy"]')
         print('寻找按钮:', dbuy_button.text)
         dbuy_button.click()
@@ -65,24 +72,24 @@ class App:
         """自动确认订单"""
 
         title = self.driver.title
-        while title != '确认订单':
-            title = self.driver.title
-        try:
-            self.driver.find_element_by_xpath(
-                '//*[@id="confirmOrder_1"]/div[1]/div[4]/div[1]/div[2]/span/input').send_keys(name)
-            self.driver.find_element_by_xpath(
-                '//*[@id="confirmOrder_1"]/div[1]/div[4]/div[2]/div[2]/span[2]/input').send_keys(phone)
-        except Exception as e:
-            print('联系人输入出错', e)
-
-        try:
-
-            self.driver.find_element_by_xpath(
-                '//*[@id="confirmOrder_1"]/div[2]/div[2]/div[1]/div/label/span[1]/input').click()
-        except Exception as e:
-            print('购票人选择出错', e)
-
-        self.driver.find_element_by_xpath('//div[@class="submit-wrapper"]/button').click()
+        while True:
+            try:
+                while title != '确认订单':
+                    title = self.driver.title
+                try:
+                    self.driver.find_element_by_xpath(
+                        '//*[@id="confirmOrder_1"]/div[2]/div[2]/div[1]/div[1]/label/span[1]/input').click()
+                    time.sleep(0.5)
+                    self.driver.find_element_by_xpath(
+                        '//*[@id="confirmOrder_1"]/div[2]/div[2]/div[1]/div[2]/label/span[1]/input').click()
+                except Exception as e:
+                    raise ('购票人选择出错')
+                time.sleep(0.5)
+                self.driver.find_element_by_xpath('//div[@class="submit-wrapper"]/button').click()
+                break
+            except Exception as e:
+                print(e)
+                continue
 
 
 def get_config(section, key):
@@ -90,12 +97,17 @@ def get_config(section, key):
     config.read('config.ini', encoding='UTF-8')
     return config.get(section, key)
 
+def work(ticket_number):
 
-if __name__ == '__main__':
-    dotakey = get_config('info', 'privilege_val')
-    name = get_config('info', 'name')
-    phone = get_config('info', 'phone')
+    dotakey = get_config('info', 'privilege_val') 
     myapp = App(dotakey)
     myapp.login()
-    myapp.detail_page_auto()
-    myapp.confirm_auto(name, phone)
+    myapp.detail_page_auto(ticket_number)
+
+if __name__ == '__main__': 
+    _max_thread = 10
+    pool = SimpleThreadPool(_max_thread)
+    pool.add_task(work, 1)
+    pool.add_task(work, 2)
+    pool.add_task(work, 3)
+    pool.wait_completion()
