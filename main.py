@@ -6,17 +6,17 @@ from selenium.webdriver.common.by import By
 from threadpool import SimpleThreadPool
 import configparser
 import time
-
+import json
 
 
 class App:
-    def __init__(self, dotakey):
+    def __init__(self, dotakey, chromedriver):
         self.dotakey = dotakey
+        self.chromedriver = chromedriver
+        self.driver = webdriver.Chrome(self.chromedriver)
         # self.phone_num = phone_num
         # self.passwd = passwd
 
-    chromedriver = r"driver/chromedriver.exe"
-    driver = webdriver.Chrome(chromedriver)
 
     def login(self):
         """登陆模块"""
@@ -28,11 +28,26 @@ class App:
         # self.driver.find_element_by_xpath('//*[@id="fm-login-id"]').send_keys(self.phone_num)
         # self.driver.find_element_by_xpath('//*[@id="fm-login-password"]').send_keys(self.passwd)
 
+
+        str=''
+        with open('cookie.json','r',encoding='utf-8') as f:
+            listCookies=json.loads(f.read())
+        cookie = [item["name"] + "=" + item["value"] for item in listCookies]
+        cookiestr = '; '.join(item for item in cookie)
+        print(cookiestr)
+        driver.refresh()
+
         WebDriverWait(self.driver, 3000).until(
             EC.presence_of_element_located((By.XPATH, '//a[@data-spm="duserinfo"]/div')))
         print('登陆成功')
         user_name = self.driver.find_element_by_xpath('//a[@data-spm="duserinfo"]/div').text
         print('账号：', user_name)
+        
+        cookie = driver.get_cookies()
+        jsonCookies = json.dumps(cookie)
+        with open('cookie.json', 'w') as f:
+            f.write(jsonCookies)
+
 
     def detail_page_auto(self, ticket_number=3):
         """详情页自动"""
@@ -97,17 +112,17 @@ def get_config(section, key):
     config.read('config.ini', encoding='UTF-8')
     return config.get(section, key)
 
-def work(ticket_number):
+def work(ticket_number, driver_path):
 
     dotakey = get_config('info', 'privilege_val') 
-    myapp = App(dotakey)
+    myapp = App(dotakey, driver_path)
     myapp.login()
     myapp.detail_page_auto(ticket_number)
 
 if __name__ == '__main__': 
     _max_thread = 10
     pool = SimpleThreadPool(_max_thread)
-    pool.add_task(work, 1)
-    pool.add_task(work, 2)
-    pool.add_task(work, 3)
+    pool.add_task(work, 3, r"driver/chromedriver.exe")
+    pool.add_task(work, 3, r"driver/chromedriver.1.exe")
+    pool.add_task(work, 3, r"driver/chromedriver.2.exe")
     pool.wait_completion()
